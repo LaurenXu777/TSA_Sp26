@@ -1,7 +1,7 @@
 ---
 title: "ENV 790.30 - Time Series Analysis for Energy Data | Spring 2025"
 subtitle: "Assignment 2 - Due date 01/27/26"
-author: "Student Name"
+author: "Lauren Xu"
 output: pdf_document
 geometry: margin=2.54cm
 ---
@@ -22,7 +22,11 @@ R packages needed for this assignment:"forecast","tseries", and "dplyr". Install
 
 ```{r}
 #Load/install required package here
-
+library(readxl)
+library(forecast)
+library(tseries)
+library(dplyr)
+library(ggplot2)
 ```
 
 
@@ -32,7 +36,8 @@ Consider the data provided in the spreadsheet "Table_10.1_Renewable_Energy_Produ
 
 ```{r}
 #Importing data set
-
+getwd()
+energy_data1 <- read_excel(path="/Users/xxx/R/Time Series_R/TSA/Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.xlsx",skip = 12, sheet="Monthly Data",col_names=FALSE) 
 ```
 
 
@@ -40,15 +45,23 @@ Consider the data provided in the spreadsheet "Table_10.1_Renewable_Energy_Produ
 You will work only with the following columns: Total Biomass Energy Production, Total Renewable Energy Production, Hydroelectric Power Consumption. Create a data frame structure with these three time series only. Use the command head() to verify your data.
 
 ```{r}
+read_col_names <- read_excel(path="/Users/xxx/R/Time Series_R/TSA/Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.xlsx",skip = 10,n_max = 1, sheet="Monthly Data",col_names=FALSE) 
 
+colnames(energy_data1) <- read_col_names
+
+head(energy_data1)
+
+ts_energy_data1 <- energy_data1[,4:6]
 ```
 
 
 ## Question 2
 Transform your data frame in a time series object and specify the starting point and frequency of the time series using the function ts().
 
-```{r}
+```{r include=FALSE}
+ts_energy_data1 <- ts(ts_energy_data1, start = c(1973, 1),frequency = 12)
 
+ts_energy_data1
 ```
 
 
@@ -56,7 +69,11 @@ Transform your data frame in a time series object and specify the starting point
 Compute mean and standard deviation for these three series.
 
 ```{r}
+ts.mean <- colMeans(ts_energy_data1, na.rm = TRUE)
+ts.sd <- apply(ts_energy_data1, 2, sd, na.rm = TRUE)
 
+ts.mean
+ts.sd
 ```
 
 
@@ -64,7 +81,39 @@ Compute mean and standard deviation for these three series.
 Display and interpret the time series plot for each of these variables. Try to make your plot as informative as possible by writing titles, labels, etc. For each plot add a horizontal line at the mean of each series in a different color.
 
 ```{r}
+mean_biomass <- mean(ts_energy_data1[,1], na.rm = TRUE)
+mean_renewable <- mean(ts_energy_data1[,2], na.rm = TRUE)
+mean_hydroelectric <- mean(ts_energy_data1[,3], na.rm = TRUE)
 
+
+autoplot(ts_energy_data1[,1]) +
+  geom_hline(
+    aes(yintercept = mean_biomass, color = "Mean")
+  )+
+  scale_color_manual(values = c("Mean" = "blue"), name = "") +
+  xlab("Time") +
+  ylab("Total Biomass Energy Consumption (Trillion Btu)") +
+  ggtitle("Monthly Biomass Energy Consumption with Mean Line")
+
+
+autoplot(ts_energy_data1[,2]) +
+  geom_hline(
+  aes(yintercept = mean_renewable, color = "Mean")
+  )+
+  scale_color_manual(values = c("Mean" = "purple"), name = "") +
+  xlab("Time") +
+  ylab("Total Renewable Energy Consumption (Trillion Btu)") +
+  ggtitle("Monthly Renewable Energy Consumption with Mean Line")
+
+
+autoplot(ts_energy_data1[,3]) +
+  geom_hline(
+    aes(yintercept = mean_hydroelectric, color = "Mean")
+  )+
+  scale_color_manual(values = c("Mean" = "red"), name = "") +
+  xlab("Time") +
+  ylab("Total Hydroelectric Power Consumption (Trillion Btu)") +
+  ggtitle("Monthly Hydroelectric Power Consumption with Mean Line")
 ```
 
 
@@ -72,23 +121,39 @@ Display and interpret the time series plot for each of these variables. Try to m
 Compute the correlation between these three series. Are they significantly correlated? Explain your answer.
 
 ```{r}
-
+cor.test(ts_energy_data1[,1],
+         ts_energy_data1[,2])
+cor.test(ts_energy_data1[,1],
+         ts_energy_data1[,3])
+cor.test(ts_energy_data1[,2],
+         ts_energy_data1[,3])
 ```
-
+1. Renewable energy and Biomass energy are strongly and significantly correlated, since correlation is 0.965 and p-value<0.05. 
+2. Biomass is negatively and not strongly correlated with the Hydroelectric power, as the correlations are -0.135. The relationship is statistically significant (p-value<0.05).
+3. Renewable energy is also negatively and not strongly correlated (-0.058) with hydroelectric power and the relationship is not significant (p-value>0.05).
 
 ## Question 6
 Compute the autocorrelation function from lag 1 up to lag 40 for these three variables. What can you say about these plots? Do the three of them have the same behavior?
 
 ```{r}
-
+acf_biomass <- acf(ts_energy_data1[,1], lag.max = 40, plot = TRUE, main = ("ACF of Total Biomass Energy Consumption"))
+acf_renewable <- acf(ts_energy_data1[,2], lag.max = 40, plot = TRUE, main = ("ACF of Total Renewable Energy Consumption"))
+acf_hydroelectric <- acf(ts_energy_data1[,3], lag.max = 40, plot = TRUE, main = ("ACF of Hydroelectric Power Consumption"))
 ```
+Their ACFs decrease as lags increase.
+
+Biomass: Extremely persistent with very slow decay.
+Renewable: Very similar to the renewable, strong persistence.
+Hydroelectric: Moderate persistent and autocorrelation declines faster.
 
 
 ## Question 7
 Compute the partial autocorrelation function from lag 1 to lag 40 for these three variables. How these plots differ from the ones in Q6?
 
 ```{r}
-
+pacf_biomass <- pacf(ts_energy_data1[,1], lag.max = 40, plot = TRUE, main = ("PACF of Total Biomass Energy Consumption"))
+pacf_renewable <- pacf(ts_energy_data1[,2], lag.max = 40, plot = TRUE, main = ("PACF of Total Renewable Energy Consumption"))
+pacf_hydroelectric <- pacf(ts_energy_data1[,3], lag.max = 40, plot = TRUE, main = ("PACF of Hydroelectric Power Consumption"))
 ```
-
+In ACF, autocorrelations remain large for many lags, especially in Renewable and Biomass plots. In PACF, however, Lag 1 is very large and significant while most other lags are small and insignificant.
 
