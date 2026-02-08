@@ -1,11 +1,11 @@
 ---
 title: "ENV 797 - Time Series Analysis for Energy and Environment Applications | Spring 2026"
 subtitle: "Assignment 4 - Due date 02/10/26"
-author: "Student Name"
+author: "Lauren Xu"
 output: pdf_document
 geometry: margin=2.54cm
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
   
 ## Directions
@@ -22,7 +22,12 @@ R packages needed for this assignment: "xlsx" or "readxl", "ggplot2", "forecast"
 
 ```{r message=FALSE, warning=FALSE}
 #Load/install required package here
-
+library(lubridate)
+library(ggplot2)
+library(forecast)
+library(Kendall)
+library(tseries)
+library(readxl)
 ```
 
 ## Questions 
@@ -31,8 +36,18 @@ Consider the same data you used for A3 from the spreadsheet "Table_10.1_Renewabl
 
 ```{r message=FALSE, warning=FALSE}
 #Importing data set - you may copy your code from A3
+energy_data1 <- read_excel(path="/Users/xxx/R/Time Series_R/TSA/Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.xlsx",skip = 12, sheet="Monthly Data",col_names=FALSE) 
 
+read_col_names <- read_excel(path="/Users/xxx/R/Time Series_R/TSA/Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.xlsx",skip = 10,n_max = 1, sheet="Monthly Data",col_names=FALSE) 
 
+colnames(energy_data1) <- read_col_names
+head(energy_data1)
+
+renewable <- energy_data1[,5]
+
+#transform data frame to time series object
+ts_renewable <- ts(renewable, start = c(1973, 1),frequency = 12)
+ts_renewable
 ```
 
 
@@ -50,6 +65,12 @@ Difference the "Total Renewable Energy Production" series using function diff().
 Try differencing at lag 1 only once, i.e., make `lag=1` and `differences=1`. Plot the differenced series. Do the series still seem to have trend?
 
 ```{r}
+diff_renewable <- diff(ts_renewable[, 1], lag = 1, differences = 1)
+
+autoplot(diff_renewable) +
+  xlab("Time") +
+  ylab("Total Renewable Energy Consumption (Trillion Btu)") +
+  ggtitle("Monthly Renewable Energy Consumption")
 
 ```
 
@@ -58,7 +79,23 @@ Try differencing at lag 1 only once, i.e., make `lag=1` and `differences=1`. Plo
 Copy and paste part of your code for A3 where you run the regression for Total Renewable Energy Production and subtract that from the original series. This should be the code for Q3 and Q4. make sure you use assign same name for the time series object that you had in A3, otherwise the code will not work.
 
 ```{r}
+# number of observations
+nobs <- length(ts_renewable[, 1])
 
+# time index
+t <- c(1:nobs)
+
+# linear trend models
+lm_renewable <- lm(ts_renewable[, 1] ~ t)
+
+summary(lm_renewable)
+
+#Store reg coefficient 
+beta0_renewable <- as.numeric(lm_renewable$coefficients[1]) #intercept
+beta1_renewable <- as.numeric(lm_renewable$coefficients[2]) #slope
+
+#remove the trend from series
+detrend_renewable <- ts_renewable[, 1] - (beta0_renewable + beta1_renewable*t)
 ```
 
 ### Q3
@@ -69,7 +106,13 @@ Using autoplot() + autolayer() create a plot that shows the three series togethe
 What can you tell from this plot? Which method seems to have been more efficient in removing the trend?
 
 ```{r}
-
+autoplot(ts_renewable[, 1], series="Original Series") +
+  autolayer(diff_renewable, series="Differenced") +
+  autolayer(detrend_renewable, series="Detrended") +
+  ylab("Total Renewable Energy Consumption (Trillion Btu)") +
+  xlab("Time") +
+  ggtitle("Comparison: Original vs. Differenced vs. Detrended") +
+  theme_minimal()
 ```
 
 > Answer: 
@@ -78,7 +121,19 @@ What can you tell from this plot? Which method seems to have been more efficient
 Plot the ACF for the three series and compare the plots. Add the argument `ylim=c(-0.5,1)` to the autoplot() or Acf() function - whichever you are using to generate the plots - to make sure all three y axis have the same limits. Looking at the ACF which method do you think was more efficient in eliminating the trend? The linear regression or differencing?
 
 ```{r}
+plot1 <- autoplot(Acf(ts_renewable[, 1], plot = FALSE)) +
+  ggtitle("ACF: Original Series") +
+  ylim(-0.5, 1)
 
+plot2 <- autoplot(Acf(detrend_renewable, plot = FALSE)) +
+  ggtitle("ACF: Linear Regression Detrended") +
+  ylim(-0.5, 1)
+
+plot3 <- autoplot(Acf(diff_renewable, plot = FALSE)) +
+  ggtitle("ACF: Differenced Series") +
+  ylim(-0.5, 1)
+
+cowplot::plot_grid(plot1, plot2, plot3, nrow = 3)
 ```
 
 > Answer: 
@@ -87,7 +142,11 @@ Plot the ACF for the three series and compare the plots. Add the argument `ylim=
 Compute the Seasonal Mann-Kendall and ADF Test for the original "Total Renewable Energy Production" series. Ask R to print the results. Interpret the results for both test. What is the conclusion from the Seasonal Mann Kendall test? What's the conclusion for the ADF test? Do they match what you observed in Q3 plot? Recall that having a unit root means the series has a stochastic trend. And when a series has stochastic trend we need to use differencing to remove the trend.
 
 ```{r}
+smk_test <- SeasonalMannKendall(ts_renewable[, 1])
+print(smk_test)
 
+adf_test <- adf.test(ts_renewable[, 1])
+print(adf_test)
 ```
 
 > Answer: 
@@ -96,14 +155,36 @@ Compute the Seasonal Mann-Kendall and ADF Test for the original "Total Renewable
 Aggregate the original "Total Renewable Energy Production" series by year. You can use the same procedure we used in class. Store series in a matrix where rows represent months and columns represent years. And then take the columns mean using function colMeans(). Recall the goal is the remove the seasonal variation from the series to check for trend. Convert the accumulates yearly series into a time series object and plot the series using autoplot().
 
 ```{r}
+renewable_matrix<- matrix(ts_renewable[, 1], nrow = 12)
 
+yearly_values<- colMeans(renewable_matrix)
+
+yr_start<-start(ts_renewable)[1]
+
+ts_yearly<- ts(yearly_values, start =yr_start, frequency = 1)
+
+# 4. Plot the result
+autoplot(ts_yearly) +
+  ggtitle("Yearly Average: Total Renewable Energy Production") +
+  ylab("Trillion Btu") +
+  xlab("Year") +
+  theme_minimal()
 ```
 
 ### Q7
 Apply the Mann Kendall, Spearman correlation rank test and ADF. Are the results from the test in agreement with the test results for the monthly series, i.e., results for Q5?
 
 ```{r}
+mk_test<- MannKendall(ts_yearly)
+print(mk_test)
 
+spearman_test <- cor.test(x = time(ts_yearly), 
+                          y = ts_yearly, 
+                          method = "spearman")
+print(spearman_test)
+
+adf_test_yearly <- adf.test(ts_yearly)
+print(adf_test_yearly)
 ```
 
 > Answer: 
